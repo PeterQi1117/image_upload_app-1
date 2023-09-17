@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <title>Image Gallery</title>
+    <script>
+      async function uploadFile(event) {
+        event.preventDefault();
+
+        const form = document.querySelector("form");
+        const formData = new FormData(form);
+        const uploadBtn = document.querySelector(".upload-btn");
+        const uploadProgress = document.querySelector(".upload-progress");
+        const progressBar = document.querySelector(".progress-bar");
+        const successMessage = document.querySelector(".success-message");
+        const dropMessage = document.querySelector(".file-drop-message");
+
+        uploadBtn.disabled = true;
+
+        try {
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            progressBar.style.width = "100%";
+            uploadProgress.classList.add("hidden");
+            successMessage.classList.remove("hidden");
+
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+              successMessage.classList.add("hidden");
+              dropMessage.textContent =
+                "Drag file here or browse from your computer"; // Reset file drop message
+            }, 3000);
+          }
+        } catch (error) {
+          console.error("Upload failed", error);
+        } finally {
+          uploadBtn.disabled = false;
+        }
+      }
+
+      function updateProgress(event) {
+        const uploadProgress = document.querySelector(".upload-progress");
+        const progressBar = document.querySelector(".progress-bar");
+
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          progressBar.style.width = percentComplete + "%";
+          uploadProgress.classList.remove("hidden");
+        }
+      }
+
+      function prepareUpload() {
+        const fileInput = document.querySelector("input[type=file]");
+        const dropMessage = document.querySelector(".file-drop-message");
+        fileInput.addEventListener("change", (event) => {
+          const fileList = event.target.files;
+          if (fileList.length) {
+            dropMessage.textContent = fileList[0].name;
+          }
+        });
+      }
+
+      window.addEventListener("load", (event) => {
+        prepareUpload();
+      });
+    </script>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <div class="nav-brand">Image Gallery</div>
+        <div class="nav-links">
+          <a href="/">Home</a>
+          <a href="/view">View Gallery</a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>Upload Image</h2>
+        <form
+          action="/upload"
+          method="POST"
+          enctype="multipart/form-data"
+          onsubmit="uploadFile(event)"
+        >
+          <div class="file-drop-zone">
+            <input type="file" name="file" />
+            <div class="file-drop-message">
+              Drag file here or
+              <span class="file-browse-link">browse</span> from your computer
+            </div>
+          </div>
+          <button type="submit" class="upload-btn">Upload</button>
+        </form>
+        <div class="upload-progress hidden">
+          <div class="progress-bar"></div>
+        </div>
+        <div class="success-message hidden">
+          <span class="tick">✔</span> Completed
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
