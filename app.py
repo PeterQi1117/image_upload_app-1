@@ -1,14 +1,16 @@
 from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash, jsonify
 import os
+from google.cloud import storage, firestore
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
-UPLOAD_FOLDER = os.path.abspath('uploads')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+storage_client = storage.Client()
+bucket_name = 'group-13-project-2'
+bucket = storage_client.bucket(bucket_name)
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+db = firestore.Client()
+files_metadata_collection = db.collection('files_metadata')
 
 @app.route('/')
 def home():
@@ -21,18 +23,40 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify(error="No selected file"), 400
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+    
+    # Save file to Google Cloud Storage
+    blob = bucket.blob(file.filename)
+    blob.content_disposition = "attachment; filename={}".format(file.filename)
+    blob.upload_from_string(file.read(), content_type=file.content_type)
+    blob.make_public()
+    
+    # Store metadata in Firestore
+    metadata = {
+        'filename': file.filename,
+        'location': blob.public_url,
+        'size': blob.size
+    }
+    files_metadata_collection.add(metadata)
+    
     return jsonify(success="File uploaded successfully")
 
 @app.route('/view')
 def view_files():
-    files = os.listdir(UPLOAD_FOLDER)
+    # Fetch metadata from Firestore
+    files_metadata = files_metadata_collection.stream()
+    files = [(doc.to_dict()['filename'], doc.to_dict()['location']) for doc in files_metadata]
     return render_template('view.html', files=files)
+
+@app.route('/view/<filename>')
+def view_file(filename):
+    metadata = next(files_metadata_collection.where('filename', '==', filename).stream()).to_dict()
+    return render_template('view-image.html', metadata=metadata)
 
 @app.route('/download/<filename>')
 def download_file(filename):
-    full_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    # We will redirect to the direct GCS URL for the file
+    blob = bucket.blob(filename)
+    return redirect(blob.public_url)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=80)
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))

@@ -20,13 +20,16 @@
 
 <main class="container">
     <section class="gallery">
-        {% for file in files %}
+        {% for file_metadata in files %}
         <div class="gallery-item">
-            <img src="/download/{{ file }}" alt="{{ file }}" class="gallery-img">
+            
+            <img src="{{ file_metadata[1] }}" alt="{{ file_metadata[0] }}" class="gallery-img">
             <div class="gallery-info">
-                <a href="/download/{{ file }}">{{ file }}</a>
+                
+                <a href="/view/{{ file_metadata[0] }}">{{ file_metadata[0] }}</a>
                 <br>
-                <a href="/download/{{ file }}" download class="download-link">Download</a>
+                
+                <a href="{{ file_metadata[1] }}" download class="download-link">Download</a>
             </div>
         </div>
         {% endfor %}
