@@ -1,0 +1,6 @@
+gunicorn
+flask
+pillow
+google-cloud-storage
+google-cloud-firestore
+pytest
