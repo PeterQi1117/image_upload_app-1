@@ -120,24 +120,4 @@
     };
     firebase.initializeApp(config);
   </script>
-
-  <script>
-    var email = "test@test.com";
-    var password = "password";
-
-    firebase.auth().onAuthStateChanged(function (user) {
-      if (user) {
-        console.log(user);
-      } else {
-        console.log("No user signed in.");
-      }
-    });
-
-    firebase
-      .auth()
-      .signInWithEmailAndPassword(email, password)
-      .catch(function (error) {
-        console.log(error.message);
-      });
-  </script>
 </html>

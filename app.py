@@ -13,6 +13,7 @@ import os
 from google.cloud import storage, firestore
 from pyparsing import wraps
 import pyrebase
+import base64
 
 # Firebase configuration
 config = {
@@ -88,19 +89,21 @@ def upload_file():
     file = request.files["file"]
     if file.filename == "":
         return jsonify(error="No selected file"), 400
+    
+    user = session['user']
 
     # Save file to Google Cloud Storage
-    blob = bucket.blob(file.filename)
+    blob = bucket.blob(user['email'] + "/" + file.filename)
     blob.content_disposition = "attachment; filename={}".format(file.filename)
     blob.upload_from_string(file.read(), content_type=file.content_type)
-    blob.make_public()
 
     # Store metadata in Firestore
     metadata = {
+        "location": user['email'] + "/" + file.filename,
         "filename": file.filename,
-        "location": blob.public_url,
         "size": blob.size,
     }
+
     files_metadata_collection.add(metadata)
 
     return jsonify(success="File uploaded successfully")
@@ -109,27 +112,75 @@ def upload_file():
 @app.route("/view")
 @user_required
 def view_files():
-    # Fetch metadata from Firestore
+
+    user = session['user']
+
+    key = user['email'] + "/"
+
+    files = []
+
     files_metadata = files_metadata_collection.stream()
-    files = [
-        (doc.to_dict()["filename"], doc.to_dict()["location"]) for doc in files_metadata
-    ]
+    for doc in files_metadata:
+        file_data = doc.to_dict()
+        filename = file_data["filename"]
+        file_location = file_data["location"]
+
+        if (file_location.startswith(key) == False):
+            continue
+
+        blob = bucket.blob(file_location)
+        file_blob = blob.download_as_bytes()
+        base64_file = base64.b64encode(file_blob).decode('utf-8')
+
+        files.append((filename, f"data:image/jpeg;base64,{base64_file}"))
+    
     return render_template("view.html", files=files)
+
+@app.route("/delete/<filename>", methods=["DELETE"])
+@user_required
+def delete_file(filename):
+    user = session['user']
+
+    key = user['email'] + "/"
+
+    files_metadata = files_metadata_collection.stream()
+    for doc in files_metadata:
+        file_data = doc.to_dict()
+        file_location = file_data["location"]
+
+        if (file_location.startswith(key) == False):
+            continue
+
+        if (file_data["filename"] == filename):
+            doc.reference.delete()
+            bucket.delete_blob(file_location)
+            break
+
+    return jsonify(success="File deleted successfully")
 
 
 @app.route("/view/<filename>")
 @user_required
 def view_file(filename):
+
+    user = session['user']
+
+    location = user['email'] + "/" + filename
+
+    blob = bucket.blob(location)
+    file_blob = blob.download_as_bytes()
+    base64_file = base64.b64encode(file_blob).decode('utf-8')
+
     metadata = next(
         files_metadata_collection.where("filename", "==", filename).stream()
     ).to_dict()
-    return render_template("view-image.html", metadata=metadata)
+
+    return render_template("view-image.html", file = f"data:image/jpeg;base64,{base64_file}", metadata=metadata)
 
 
 @app.route("/download/<filename>")
 @user_required
 def download_file(filename):
-    # We will redirect to the direct GCS URL for the file
     blob = bucket.blob(filename)
     return redirect(blob.public_url)
 
