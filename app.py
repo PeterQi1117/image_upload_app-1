@@ -178,12 +178,5 @@ def view_file(filename):
     return render_template("view-image.html", file = f"data:image/jpeg;base64,{base64_file}", metadata=metadata)
 
 
-@app.route("/download/<filename>")
-@user_required
-def download_file(filename):
-    blob = bucket.blob(filename)
-    return redirect(blob.public_url)
-
-
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
